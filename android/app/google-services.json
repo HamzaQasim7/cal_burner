@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "370503794472",
+    "project_id": "fitness-guatini",
+    "storage_bucket": "fitness-guatini.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:370503794472:android:d3a72d06703f8729e21a1d",
+        "android_client_info": {
+          "package_name": "com.guatini.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDh6qr549yCwicsds2OCSR3QZLH5iTSC80"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
