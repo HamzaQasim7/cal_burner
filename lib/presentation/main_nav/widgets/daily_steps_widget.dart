@@ -5,8 +5,35 @@ import 'package:percent_indicator/linear_percent_indicator.dart';
 import 'package:provider/provider.dart';
 import '../../../data/provider/activity_provider.dart';
 
-class DailyStepsWidget extends StatelessWidget {
+class DailyStepsWidget extends StatefulWidget {
   const DailyStepsWidget({super.key});
+
+  @override
+  State<DailyStepsWidget> createState() => _DailyStepsWidgetState();
+}
+
+class _DailyStepsWidgetState extends State<DailyStepsWidget> {
+  bool _isInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize after the first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeData();
+    });
+  }
+
+  Future<void> _initializeData() async {
+    if (!_isInitialized) {
+      final activityProvider = context.read<ActivityProvider>();
+      await activityProvider.initializeStepCounting();
+      await activityProvider.loadTodayActivity();
+      setState(() {
+        _isInitialized = true;
+      });
+    }
+  }
 
   String _getMotivationalMessage(double progress) {
     if (progress >= 1.0) {
@@ -34,12 +61,38 @@ class DailyStepsWidget extends StatelessWidget {
     }
   }
 
+  Widget _buildErrorWidget(String error) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          Text(
+            error,
+            style: GoogleFonts.inter(fontSize: 14, color: Colors.red),
+          ),
+          if (error.contains('Health Connect'))
+            ElevatedButton(
+              onPressed: () async {
+                final activityProvider = context.read<ActivityProvider>();
+                await activityProvider.initializeStepCounting();
+              },
+              child: Text('Install Health Connect'),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Consumer<ActivityProvider>(
       builder: (context, activityProvider, child) {
+        if (activityProvider.error != null) {
+          return _buildErrorWidget(activityProvider.error!);
+        }
+
         final todayActivity = activityProvider.todayActivity;
         final steps = todayActivity?.steps ?? 0;
         const stepGoal = 10000;

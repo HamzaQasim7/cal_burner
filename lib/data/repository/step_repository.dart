@@ -6,71 +6,106 @@ class StepRepository {
   late StepDetectionService _stepService;
   bool _isInitialized = false;
   Stream<int>? _stepCountStream;
+  final SharedPreferences _prefs;
 
-  StepRepository() {
+  StepRepository(this._prefs) {
     _initialize();
   }
 
   Future<void> _initialize() async {
-    final prefs = await SharedPreferences.getInstance();
-    _stepService = StepDetectionService(prefs);
+    _stepService = StepDetectionService(_prefs);
     _isInitialized = await _stepService.initialize();
   }
 
-  // Initialize step counting
+  // Initialize step counting with Health Connect check
   Future<bool> initializeStepCounting() async {
-    if (!_isInitialized) {
-      _isInitialized = await _stepService.initialize();
+    try {
+      if (!_isInitialized) {
+        _isInitialized = await _stepService.initialize();
+      }
+
+      if (!_isInitialized) {
+        throw Exception('Failed to initialize step counting. Please install Health Connect.');
+      }
+
+      // Start listening to step count changes
+      _stepCountStream = Stream.periodic(
+        const Duration(minutes: 5),
+        (_) => getCurrentStepCount(),
+      ).asyncMap((future) => future);
+
+      return true;
+    } catch (e) {
+      print('Error initializing step counting: $e');
+      return false;
     }
-    return _isInitialized;
   }
 
   // Get current step count
   Future<int> getCurrentStepCount() async {
-    if (!_isInitialized) {
-      await _initialize();
-    }
+    try {
+      if (!_isInitialized) {
+        _isInitialized = await _stepService.initialize();
+      }
 
-    if (_stepService.needsUpdate()) {
-      final steps = await _stepService.getTodaySteps();
-      await _stepService.saveStepCount(steps);
-      return steps;
-    }
+      // Get steps from health service
+      final health = Health();
+      final now = DateTime.now();
+      final midnight = DateTime(now.year, now.month, now.day);
 
-    return _stepService.getLastStepCount();
+      final steps = await health.getTotalStepsInInterval(midnight, now);
+      if (steps != null) {
+        await saveStepCount(steps);
+      }
+      
+      return steps ?? 0;
+    } catch (e) {
+      print('Error getting step count: $e');
+      return _stepService.getLastStepCount();
+    }
   }
 
   // Get step count stream
-  Stream<int>? getStepCountStream() {
-    if (!_isInitialized) return null;
+  Stream<int> getStepCountStream() {
+    if (!_isInitialized) {
+      return Stream.error('Step counting not initialized');
+    }
 
     _stepCountStream ??= Stream.periodic(
-      const Duration(minutes: 15),
-      (_) async {
-        final steps = await getCurrentStepCount();
-        return steps;
-      },
+      const Duration(minutes: 5),
+      (_) => getCurrentStepCount(),
     ).asyncMap((future) => future);
 
-    return _stepCountStream;
+    return _stepCountStream!;
   }
 
   // Calculate calories from steps
   double calculateCaloriesFromSteps(int steps, double weight) {
-    // Average stride length in meters
-    const strideLength = 0.762;
-    // Calories burned per km (average)
-    const caloriesPerKm = 60.0;
+    const strideLength = 0.762; // meters
+    const caloriesPerKm = 60.0; // base calories per km
+    const baseWeight = 70.0; // reference weight
 
     final distanceInKm = (steps * strideLength) / 1000;
-    return distanceInKm * caloriesPerKm * (weight / 70.0);
+    final weightFactor = weight / baseWeight;
+    final calories = distanceInKm * caloriesPerKm * weightFactor;
+    final bmrContribution = (steps / 1000) * 0.5;
+
+    return calories + bmrContribution;
   }
 
   // Calculate distance from steps
   double calculateDistanceFromSteps(int steps) {
-    // Average stride length in meters
-    const strideLength = 0.762;
+    const strideLength = 0.762; // meters
     return (steps * strideLength) / 1000; // Convert to kilometers
+  }
+
+  // Save step count
+  Future<void> saveStepCount(int steps) async {
+    try {
+      await _stepService.saveStepCount(steps);
+    } catch (e) {
+      print('Error saving step count: $e');
+    }
   }
 
   // Get last update time
@@ -98,17 +133,19 @@ class StepRepository {
 
   // Get today's steps
   Future<int> getTodaySteps() async {
-    if (!_isInitialized) {
-      await _initialize();
-    }
-    return _stepService.getTodaySteps();
-  }
+    try {
+      if (!_isInitialized) {
+        await _initialize();
+      }
 
-  // Save step count
-  Future<void> saveStepCount(int steps) async {
-    if (!_isInitialized) {
-      await _initialize();
+      final health = Health();
+      final now = DateTime.now();
+      final midnight = DateTime(now.year, now.month, now.day);
+
+      return await health.getTotalStepsInInterval(midnight, now) ?? 0;
+    } catch (e) {
+      print('Error getting today steps: $e');
+      return _stepService.getLastStepCount();
     }
-    await _stepService.saveStepCount(steps);
   }
 }

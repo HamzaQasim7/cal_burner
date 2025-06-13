@@ -1,4 +1,6 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/daily_activity_model.dart';
 import '../models/weekly_summary_model.dart';
@@ -6,8 +8,13 @@ import '../repository/activity_repository.dart';
 import '../repository/step_repository.dart';
 
 class ActivityProvider with ChangeNotifier {
-  final ActivityRepository _activityRepository = ActivityRepository();
-  final StepRepository _stepRepository = StepRepository();
+  final ActivityRepository _activityRepository;
+  final StepRepository _stepRepository;
+  final SharedPreferences _prefs;
+
+  ActivityProvider(this._prefs)
+    : _activityRepository = ActivityRepository(_prefs),
+      _stepRepository = StepRepository(_prefs);
 
   DailyActivity? _todayActivity;
   List<DailyActivity> _weeklyActivities = [];
@@ -15,7 +22,7 @@ class ActivityProvider with ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   bool _isStepCountingInitialized = false;
-  String? _userId; // Add userId management
+  String? _userId;
 
   // Getters
   DailyActivity? get todayActivity => _todayActivity;
@@ -29,6 +36,7 @@ class ActivityProvider with ChangeNotifier {
   String? get error => _error;
 
   bool get isStepCountingInitialized => _isStepCountingInitialized;
+  User? get currentUser => FirebaseAuth.instance.currentUser;
 
   // Set user ID (call this when user logs in)
   void setUserId(String userId) {
@@ -39,15 +47,29 @@ class ActivityProvider with ChangeNotifier {
   // Initialize step counting
   Future<void> initializeStepCounting() async {
     if (_userId == null) {
-      _setError('User ID not set');
+      setUserId(currentUser?.uid ?? '');
       return;
     }
+    
 
     try {
       _isStepCountingInitialized =
           await _stepRepository.initializeStepCounting();
+
+      if (!_isStepCountingInitialized) {
+        _setError('Please install Health Connect to track steps');
+        return;
+      }
+
       if (_isStepCountingInitialized) {
-        _listenToStepCount();
+        // Start listening to step count changes
+        _stepRepository.getStepCountStream().listen(
+          (steps) => _updateStepCount(steps),
+          onError: (error) {
+            print('Step count error: $error');
+            _setError('Step counting error: $error');
+          },
+        );
       }
       notifyListeners();
     } catch (e) {
@@ -108,6 +130,7 @@ class ActivityProvider with ChangeNotifier {
       }
     } catch (e) {
       print('Error updating step count: $e');
+      _setError('Failed to update step count: $e');
     }
   }
 
@@ -117,6 +140,8 @@ class ActivityProvider with ChangeNotifier {
       _setError('User not logged in');
       return;
     }
+
+    if (_isLoading) return; // Prevent multiple simultaneous loads
 
     _setLoading(true);
     _clearError();
@@ -388,17 +413,24 @@ class ActivityProvider with ChangeNotifier {
 
   // Helper methods for state management
   void _setLoading(bool loading) {
-    _isLoading = loading;
-    notifyListeners();
+    if (_isLoading != loading) {
+      _isLoading = loading;
+      notifyListeners();
+    }
   }
 
   void _setError(String error) {
-    _error = error;
-    notifyListeners();
+    if (_error != error) {
+      _error = error;
+      notifyListeners();
+    }
   }
 
   void _clearError() {
-    _error = null;
+    if (_error != null) {
+      _error = null;
+      notifyListeners();
+    }
   }
 
   // Dispose method to clean up resources

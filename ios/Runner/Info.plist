@@ -50,13 +50,24 @@
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>This app needs access to your photo library to select photos for your profile picture.</string>
 	<key>NSHealthShareUsageDescription</key>
-	<string>We need access to your health data to track your steps</string>
+	<string>We need access to your health data to track your steps and calculate calories burned</string>
 	<key>NSHealthUpdateUsageDescription</key>
-	<string>We need access to your health data to track your steps</string>
+	<string>We need permission to update your health data with your daily steps and activity</string>
+	<key>NSMotionUsageDescription</key>
+	<string>We need access to motion and fitness data to track your steps and physical activity</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>We need your location to track your outdoor activities and calculate distance</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>We need your location to track your outdoor activities and calculate distance even when the app is in background</string>
 	<key>UIBackgroundModes</key>
 	<array>
+		<string>location</string>
 		<string>fetch</string>
 		<string>processing</string>
+	</array>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>healthkit</string>
 	</array>
 </dict>
 </plist>

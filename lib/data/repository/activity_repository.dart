@@ -5,10 +5,14 @@ import '../models/daily_activity_model.dart';
 
 class ActivityRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final SharedPreferences _prefs;
 
-  // Save daily activity
+  ActivityRepository(this._prefs);
+
+  // Save daily activity with better error handling
   Future<void> saveDailyActivity(DailyActivity activity) async {
     try {
+      // Save to Firestore
       await _firestore
           .collection('users')
           .doc(activity.userId)
@@ -16,44 +20,45 @@ class ActivityRepository {
           .doc(activity.id)
           .set(activity.toJson());
 
-      // Save to local storage as backup
+      // Save to local storage
       await _saveToLocal(activity);
     } catch (e) {
       print('Error saving daily activity: $e');
-      throw Exception('Failed to save daily activity');
+      // Try to save locally if Firestore fails
+      await _saveToLocal(activity);
+      throw Exception('Failed to save daily activity to cloud');
     }
   }
 
-  // Get today's activity
+  // Get today's activity with proper date handling
   Future<DailyActivity?> getTodayActivity(String userId) async {
     final today = DateTime.now();
     final todayStart = DateTime(today.year, today.month, today.day);
+    final todayEnd = todayStart.add(const Duration(days: 1));
 
     try {
-      final querySnapshot =
-          await _firestore
-              .collection('users')
-              .doc(userId)
-              .collection('daily_activities')
-              .where(
-                'date',
-                isGreaterThanOrEqualTo: todayStart.toIso8601String(),
-              )
-              .where(
-                'date',
-                isLessThan: todayStart.add(Duration(days: 1)).toIso8601String(),
-              )
-              .limit(1)
-              .get();
+      // Try Firestore first
+      final querySnapshot = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('daily_activities')
+          .where('date', isGreaterThanOrEqualTo: todayStart.toIso8601String())
+          .where('date', isLessThan: todayEnd.toIso8601String())
+          .limit(1)
+          .get();
 
       if (querySnapshot.docs.isNotEmpty) {
         final doc = querySnapshot.docs.first;
         return DailyActivity.fromJson({'id': doc.id, ...doc.data()});
       }
+
+      // If not in Firestore, try local storage
+      return await getTodayActivityFromLocal(userId);
     } catch (e) {
       print('Error getting today activity: $e');
+      // Fallback to local storage
+      return await getTodayActivityFromLocal(userId);
     }
-    return null;
   }
 
   // Get weekly activities
@@ -133,30 +138,29 @@ class ActivityRepository {
     }
   }
 
-  // Save to local storage
+  // Improved local storage handling
   Future<void> _saveToLocal(DailyActivity activity) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
       final key = 'activity_${activity.userId}_${activity.dateString}';
-      await prefs.setString(key, activity.toJson().toString());
+      await _prefs.setString(key, activity.toJson().toString());
     } catch (e) {
       print('Error saving to local storage: $e');
     }
   }
 
-  // Get from local storage
   Future<DailyActivity?> getTodayActivityFromLocal(String userId) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
       final today = DateTime.now();
       final dateString = "${today.day}/${today.month}/${today.year}";
       final key = 'activity_${userId}_$dateString';
-      final activityData = prefs.getString(key);
+      final activityData = _prefs.getString(key);
 
       if (activityData != null) {
-        // Note: You'd need to properly parse this JSON string
-        // This is a simplified version
-        return null; // Return parsed activity
+        return DailyActivity.fromJson(Map<String, dynamic>.from(
+          Map<String, dynamic>.from(
+            activityData as Map<String, dynamic>,
+          ),
+        ));
       }
     } catch (e) {
       print('Error getting activity from local storage: $e');

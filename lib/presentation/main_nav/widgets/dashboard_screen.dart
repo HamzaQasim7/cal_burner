@@ -55,7 +55,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ? 'greeting.afternoon'.tr()
                             : 'greeting.evening'.tr()} ${authProvider.firebaseUser?.displayName ?? 'User'}",
                         style: GoogleFonts.inter(
-                          fontSize: 16,
+                          fontSize: 12,
                           color: isDark ? Colors.white70 : Colors.black54,
                         ),
                       ),
