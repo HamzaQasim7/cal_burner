@@ -53,25 +53,27 @@ class _LoginScreenState extends State<LoginScreen> {
     final authProvider = context.read<AuthenticationProvider>();
 
     try {
-      final success = await authProvider.signInWithEmail(
+      await authProvider.signInWithEmail(
         _emailController.text.trim(),
         _passwordController.text,
       );
 
-      if (success) {
-        if (authProvider.isEmailVerified) {
-          _showSnackBar('auth.login_success'.tr());
-          // Navigate to main screen
-          if (mounted) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const MainNavigation()),
-            );
-          }
-        } else {
-          _showSnackBar('auth.verify_email_first'.tr(), isError: true);
-          await authProvider.sendEmailVerification();
-        }
+      // Check email verification status
+      final isVerified = await authProvider.checkEmailVerification();
+
+      if (isVerified) {
+        // First show success message
+        _showSnackBar('auth.login_success'.tr());
+
+        // Use pushAndRemoveUntil to clear the navigation stack
+        await Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const MainNavigation()),
+          (route) => false, // This removes all previous routes
+        );
+      } else {
+        _showSnackBar('auth.verify_email_first'.tr(), isError: true);
+        await authProvider.sendEmailVerification();
       }
     } catch (e) {
       debugPrint('Login Error: $e');
@@ -90,13 +92,16 @@ class _LoginScreenState extends State<LoginScreen> {
       final success = await authProvider.signInWithGoogle();
       if (success) {
         _showSnackBar('auth.google_login_success'.tr());
-        // Navigate to main screen
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const MainNavigation()),
-          );
-        }
+
+        // Ensure we're still mounted before navigation
+        if (!mounted) return;
+
+        // Use pushAndRemoveUntil to clear the navigation stack
+        await Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const MainNavigation()),
+          (route) => false, // This removes all previous routes
+        );
       }
     } catch (e) {
       debugPrint('Google Login Error: $e');
@@ -171,8 +176,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscurePassword
-                              ? Iconsax.eye_outline
-                              : Iconsax.eye_slash_outline,
+                              ? Iconsax.eye_slash_outline
+                              : Iconsax.eye_outline,
                           color: AppTheme.lightTheme.primaryColor,
                         ),
                         onPressed: () {

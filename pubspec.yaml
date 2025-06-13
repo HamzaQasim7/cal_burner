@@ -7,7 +7,8 @@ version: 1.0.0+1
 
 environment:
   sdk: ^3.7.2
-
+dependency_overrides:
+  health: ^11.1.1
 dependencies:
   flutter:
     sdk: flutter
@@ -31,6 +32,8 @@ dependencies:
   provider: ^6.1.1
   easy_localization: ^3.0.3
   image_picker: ^1.1.2
+
+  workmanager: ^0.6.0
 
 dev_dependencies:
   flutter_test:

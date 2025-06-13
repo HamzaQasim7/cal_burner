@@ -18,7 +18,10 @@ class SessionManager extends ChangeNotifier {
     });
   }
 
-  bool get isAuthenticated => _auth.currentUser != null;
+  bool get isAuthenticated {
+    final user = _auth.currentUser;
+    return user != null && user.emailVerified;
+  }
 
   bool get hasSeenOnboarding => _prefs.getBool(_hasSeenOnboardingKey) ?? false;
   bool get isFirstLaunch => _prefs.getBool(_isFirstLaunchKey) ?? true;
@@ -57,5 +60,15 @@ class SessionManager extends ChangeNotifier {
     } catch (e) {
       rethrow;
     }
+  }
+
+  // Add method to check authentication status
+  Future<bool> checkAuthenticationStatus() async {
+    final user = _auth.currentUser;
+    if (user != null) {
+      await user.reload();
+      return user.emailVerified;
+    }
+    return false;
   }
 }

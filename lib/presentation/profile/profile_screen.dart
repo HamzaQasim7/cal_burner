@@ -92,7 +92,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                   ),
                 ),
                 const SizedBox(width: 16),
-                Text('profile.updating'.tr()),
+                Text('updating'.tr()),
               ],
             ),
             duration: const Duration(seconds: 1),
@@ -108,7 +108,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
         if (success) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('profile.update_success'.tr()),
+              content: Text('update_success'.tr()),
               behavior: SnackBarBehavior.floating,
               backgroundColor: Theme.of(context).colorScheme.primary,
             ),
@@ -116,7 +116,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(authProvider.error ?? 'profile.update_error'.tr()),
+              content: Text(authProvider.error ?? 'update_error'.tr()),
               backgroundColor: Theme.of(context).colorScheme.error,
               behavior: SnackBarBehavior.floating,
             ),
@@ -127,7 +127,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('profile.update_error'.tr()),
+            content: Text('update_error'.tr()),
             backgroundColor: Theme.of(context).colorScheme.error,
             behavior: SnackBarBehavior.floating,
           ),
@@ -261,36 +261,33 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
 
   Widget _dropdownField(
     String label,
-    String current,
+    String? current,
     List<String> items,
     ValueChanged<String?> onChanged,
   ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+
+    // Fallback if current is null or not in items
+    final safeValue =
+        (current != null && items.contains(current)) ? current : null;
+
     return InputDecorator(
       decoration: InputDecoration(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
         labelText: label,
         labelStyle: TextStyle(
-          color:
-              isDark
-                  ? theme.colorScheme.onSurface.withOpacity(0.7)
-                  : theme.colorScheme.onSurface.withOpacity(0.7),
+          color: theme.colorScheme.onSurface.withOpacity(0.7),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(
-            color:
-                isDark
-                    ? theme.colorScheme.primary.withOpacity(0.4)
-                    : Colors.grey.withOpacity(0.3),
-          ),
+          borderSide: BorderSide(color: theme.colorScheme.primary, width: .5),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.5),
         ),
-        filled: true,
+        filled: false,
         fillColor:
             isDark
                 ? theme.colorScheme.surfaceVariant.withOpacity(0.3)
@@ -298,8 +295,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
-          padding: EdgeInsets.zero,
-          value: current,
+          value: safeValue,
           isExpanded: true,
           icon: Icon(
             Icons.expand_more,

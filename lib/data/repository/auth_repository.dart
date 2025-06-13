@@ -68,8 +68,11 @@ class AuthRepository {
     try {
       // Calculate new IMP Score
       final updatedUser = user.updateImpScore();
-      
-      await _firestore.collection('users').doc(user.id).update(updatedUser.toJson());
+
+      await _firestore
+          .collection('users')
+          .doc(user.id)
+          .update(updatedUser.toJson());
     } catch (e) {
       rethrow;
     }
@@ -84,6 +87,9 @@ class AuthRepository {
       );
 
       if (userCredential.user != null) {
+        // Reload user to get latest verification status
+        await userCredential.user!.reload();
+        
         // Check if email is verified
         if (!userCredential.user!.emailVerified) {
           // Send verification email again if not verified
@@ -94,7 +100,11 @@ class AuthRepository {
           );
         }
 
-        // If no Firestore data exists, create basic user model
+        final userData = await _getUserData(userCredential.user!.uid);
+        if (userData != null) {
+          return userData;
+        }
+        
         return UserModel(
           id: userCredential.user!.uid,
           email: userCredential.user!.email!,
@@ -102,6 +112,13 @@ class AuthRepository {
           photoUrl: userCredential.user!.photoURL,
           createdAt: DateTime.now(),
           isEmailVerified: userCredential.user!.emailVerified,
+          age: 0,
+          height: 0.0,
+          weight: 0.0,
+          bodyFatPercentage: 0.0,
+          gender: '',
+          location: '',
+          impScore: 0.0,
         );
       }
       return null;
@@ -116,7 +133,8 @@ class AuthRepository {
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) return null;
 
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
@@ -127,12 +145,12 @@ class AuthRepository {
       if (userCredential.user != null) {
         // Check if user data exists in Firestore
         final userData = await _getUserData(userCredential.user!.uid);
-        
+
         if (userData != null) {
           return userData;
         }
 
-        // If no Firestore data exists, create and store new user
+        // If no Firestore data exists, create and store new user with default values
         final user = UserModel(
           id: userCredential.user!.uid,
           email: userCredential.user!.email!,
@@ -140,6 +158,14 @@ class AuthRepository {
           photoUrl: userCredential.user!.photoURL,
           createdAt: DateTime.now(),
           isEmailVerified: userCredential.user!.emailVerified,
+          // Initialize profile data with default values
+          age: 0,
+          height: 0.0,
+          weight: 0.0,
+          bodyFatPercentage: 0.0,
+          gender: '',
+          location: '',
+          impScore: 0.0,
         );
 
         // Store user data in Firestore
@@ -267,6 +293,16 @@ class AuthRepository {
         // Delete user account
         await user.delete();
       }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // Add this method to check email verification status
+  Future<bool> checkEmailVerification() async {
+    try {
+      await _auth.currentUser?.reload();
+      return _auth.currentUser?.emailVerified ?? false;
     } catch (e) {
       rethrow;
     }

@@ -27,7 +27,7 @@ android {
         applicationId = "com.guatini.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = 23
+        minSdk = 26
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -45,3 +45,8 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    implementation("androidx.work:work-runtime-ktx:2.7.1")
+}
+

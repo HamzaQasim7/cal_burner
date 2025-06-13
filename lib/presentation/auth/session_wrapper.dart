@@ -23,7 +23,7 @@ class SessionWrapper extends StatelessWidget {
           return const LandingScreens();
         }
 
-        // Check if user is authenticated
+        // Check if user is authenticated and email is verified
         if (!sessionManager.isAuthenticated) {
           return const LoginScreen();
         }

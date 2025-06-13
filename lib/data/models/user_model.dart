@@ -161,7 +161,6 @@ class UserModel extends Equatable {
     // Normalize score to 3 decimal places
     return double.parse(score.toStringAsFixed(3));
   }
-
   // Update IMP Score
   UserModel updateImpScore() {
     return copyWith(impScore: calculateImpScore());

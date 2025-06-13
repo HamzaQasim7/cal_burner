@@ -18,6 +18,7 @@ class AuthenticationProvider extends ChangeNotifier {
   String? get error => _error;
   bool get isAuthenticated => _authRepository.isAuthenticated;
   bool get isEmailVerified => _authRepository.isEmailVerified;
+  User? get firebaseUser => FirebaseAuth.instance.currentUser;
 
   // Initialize provider
   Future<void> initialize() async {
@@ -37,6 +38,20 @@ class AuthenticationProvider extends ChangeNotifier {
     _setLoading(true);
     try {
       _user = await _authRepository.signInWithEmail(email, password);
+      if (_user == null) {
+        _error = "Failed to sign in";
+        notifyListeners();
+        return false;
+      }
+      
+      // Check email verification
+      if (!_user!.isEmailVerified) {
+        await _authRepository.sendEmailVerification();
+        _error = "Please verify your email first";
+        notifyListeners();
+        return false;
+      }
+      
       _error = null;
       notifyListeners();
       return true;
@@ -248,6 +263,17 @@ class AuthenticationProvider extends ChangeNotifier {
       return false;
     } finally {
       _setLoading(false);
+    }
+  }
+
+  // Add method to check email verification
+  Future<bool> checkEmailVerification() async {
+    try {
+      return await _authRepository.checkEmailVerification();
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return false;
     }
   }
 

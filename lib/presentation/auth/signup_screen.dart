@@ -1,5 +1,6 @@
 import 'package:cal_burner/core/theme/app_theme.dart';
 import 'package:cal_burner/data/provider/auth_provider.dart';
+import 'package:cal_burner/presentation/auth/login_screen.dart';
 import 'package:cal_burner/presentation/auth/widgets/auth_footer.dart';
 import 'package:cal_burner/presentation/auth/widgets/google_sign_in_button.dart';
 import 'package:cal_burner/widgets/custom_elevated_button.dart';
@@ -8,6 +9,8 @@ import 'package:flutter/material.dart';
 import 'package:icons_plus/icons_plus.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:provider/provider.dart';
+
+import '../main_nav/main_nav_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -60,7 +63,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
       if (success) {
         _showSnackBar('auth.verification_email_sent'.tr());
         // Navigate to verification screen or home screen
-        // Navigator.of(context).pushReplacement(...);
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => LoginScreen()),
+        );
       }
     } catch (e) {
       debugPrint('SignUp Error: $e');
@@ -80,7 +86,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
       if (success) {
         _showSnackBar('auth.google_signup_success'.tr());
 
-        // Navigator.of(context).pushReplacement(...);
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => MainNavigation()),
+        );
       }
     } catch (e) {
       debugPrint('Google SignUp Error: $e');
@@ -170,8 +179,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscurePassword
-                              ? Iconsax.eye_outline
-                              : Iconsax.eye_slash_outline,
+                              ? Iconsax.eye_slash_outline
+                              : Iconsax.eye_outline,
                           color: AppTheme.lightTheme.primaryColor,
                         ),
                         onPressed: () {

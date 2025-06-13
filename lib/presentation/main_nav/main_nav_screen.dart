@@ -53,7 +53,7 @@ class _MainNavigationState extends State<MainNavigation> {
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
             child: Container(
-              height: 70,
+              height: 75,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,

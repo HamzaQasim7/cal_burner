@@ -49,5 +49,14 @@
 	<string>This app needs access to your camera to take photos for your profile picture.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>This app needs access to your photo library to select photos for your profile picture.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>We need access to your health data to track your steps</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>We need access to your health data to track your steps</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>processing</string>
+	</array>
 </dict>
 </plist>
