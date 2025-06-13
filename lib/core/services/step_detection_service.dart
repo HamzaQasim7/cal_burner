@@ -3,7 +3,6 @@ import 'dart:io' show Platform;
 import 'package:health/health.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:workmanager/src/workmanager.dart';
 import 'package:workmanager/workmanager.dart';
 
 // Create a global instance of WorkerManager
@@ -12,35 +11,26 @@ final workerManager = Workmanager();
 // Define the callback dispatcher at the top level
 @pragma('vm:entry-point')
 void callbackDispatcher() {
-  workerManager.executeTask(
-    () {
-          try {
-            final prefs = SharedPreferences.getInstance();
-            final health = Health();
+  workerManager.executeTask((task, inputData) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final health = Health();
 
-            // Get steps for today
-            final now = DateTime.now();
-            final midnight = DateTime(now.year, now.month, now.day);
-            final steps = health.getTotalStepsInInterval(midnight, now);
+      // Get steps for today
+      final now = DateTime.now();
+      final midnight = DateTime(now.year, now.month, now.day);
+      final steps = await health.getTotalStepsInInterval(midnight, now);
 
-            // Save steps
-            prefs.then((preferences) {
-              preferences.setInt('last_step_count', steps as int);
-              preferences.setString('last_step_update', now.toIso8601String());
-            });
+      // Save steps
+      await prefs.setInt('last_step_count', steps ?? 0);
+      await prefs.setString('last_step_update', now.toIso8601String());
 
-            return true;
-          } catch (e) {
-            print('Error in background task: $e');
-            return false;
-          }
-        }
-        as BackgroundTaskHandler,
-    // priority: Priority.high,
-    // taskName: 'backgroundStepCount',
-    // retryCount: 3,
-    // retryDelay: const Duration(minutes: 15),
-  );
+      return Future.value(true);
+    } catch (e) {
+      print('Error in background task: $e');
+      return Future.value(false);
+    }
+  });
 }
 
 class StepDetectionService {
@@ -63,24 +53,45 @@ class StepDetectionService {
         HealthDataType.ACTIVE_ENERGY_BURNED,
       ];
 
+      // Define permissions for each type
+      final permissions = [
+        HealthDataAccess.READ,
+        HealthDataAccess.READ,
+        HealthDataAccess.READ,
+      ];
+
+      print('Checking existing health permissions...');
       // First check if we already have permissions
-      final hasPermissions = await _health.hasPermissions(types);
+      final hasPermissions = await _health.hasPermissions(
+        types,
+        permissions: permissions,
+      );
+
       if (hasPermissions == true) {
         print('Already has health permissions');
         return true;
       }
 
-      // If not, request them
       print('Requesting health permissions...');
-      final authorized = await _health.requestAuthorization(types);
+      // Request permissions with explicit permission types
+      final authorized = await _health.requestAuthorization(
+        types,
+        permissions: permissions,
+      );
+
       print('Health authorization result: $authorized');
 
-      if (!authorized) {
-        print('Health data access not authorized');
-        return false;
+      // Double-check permissions after request
+      if (authorized) {
+        final verifyPermissions = await _health.hasPermissions(
+          types,
+          permissions: permissions,
+        );
+        print('Verified permissions: $verifyPermissions');
+        return verifyPermissions == true;
       }
 
-      return true;
+      return false;
     } catch (e) {
       print('Health permission request error: $e');
       return false;
@@ -89,22 +100,30 @@ class StepDetectionService {
 
   Future<bool> _requestAndroidPermissions() async {
     try {
-      // Request activity recognition permission
-      final activityStatus = await Permission.activityRecognition.request();
-      print('Activity recognition status: ${activityStatus.isGranted}');
+      // Check if permissions are already granted
+      final activityStatus = await Permission.activityRecognition.status;
+      print('Current activity recognition status: $activityStatus');
 
       if (!activityStatus.isGranted) {
-        print('Activity recognition permission not granted');
-        return false;
+        print('Requesting activity recognition permission...');
+        final result = await Permission.activityRecognition.request();
+        print('Activity recognition request result: $result');
+
+        if (!result.isGranted) {
+          print('Activity recognition permission denied');
+          return false;
+        }
       }
 
-      // Request location permissions
-      final locationStatus = await Permission.location.request();
-      print('Location status: ${locationStatus.isGranted}');
+      // Location permission is optional for Health Connect
+      final locationStatus = await Permission.location.status;
+      print('Current location status: $locationStatus');
 
       if (!locationStatus.isGranted) {
-        print('Location permission not granted');
-        return false;
+        print('Requesting location permission...');
+        final result = await Permission.location.request();
+        print('Location request result: $result');
+        // Location is not required for basic step counting
       }
 
       return true;
@@ -116,46 +135,65 @@ class StepDetectionService {
 
   Future<bool> initialize() async {
     try {
+      print('Starting step detection initialization...');
+
       if (Platform.isAndroid) {
-        // First check if Health Connect is available
+        // Check Health Connect availability
+        print('Checking Health Connect availability...');
         final isAvailable = await _health.isHealthConnectAvailable();
         print('Health Connect available: $isAvailable');
 
         if (!isAvailable) {
-          print('Health Connect not available, attempting to install');
-          // Try to install Health Connect
-          await _health.installHealthConnect();
-          print('Health Connect installation attempted');
+          print('Health Connect not available, attempting to install...');
+          try {
+            await _health.installHealthConnect();
+            print('Health Connect installation attempted');
 
-          // Verify Health Connect is now available
-          final isNowAvailable = await _health.isHealthConnectAvailable();
-          if (!isNowAvailable) {
-            print(
-              'Health Connect still not available after installation attempt',
+            // Wait a bit for installation to complete
+            await Future.delayed(Duration(seconds: 2));
+
+            final isNowAvailable = await _health.isHealthConnectAvailable();
+            print('Health Connect available after install: $isNowAvailable');
+
+            if (!isNowAvailable) {
+              print('Health Connect still not available after installation');
+              throw Exception(
+                'Health Connect is not available. Please install it manually from Play Store.',
+              );
+            }
+          } catch (installError) {
+            print('Health Connect installation error: $installError');
+            throw Exception(
+              'Failed to install Health Connect. Please install it manually from Play Store.',
             );
-            throw Exception('Health Connect is not available');
           }
         }
 
-        // Request Android-specific permissions first
+        // Request Android permissions first
+        print('Requesting Android permissions...');
         final androidPermissionsGranted = await _requestAndroidPermissions();
         if (!androidPermissionsGranted) {
           print('Android permissions not granted');
-          throw Exception('Android permissions not granted');
+          throw Exception('Required Android permissions not granted');
         }
       }
 
       // Request health permissions
+      print('Requesting health permissions...');
       final healthPermissionsGranted = await _requestHealthPermissions();
       if (!healthPermissionsGranted) {
         print('Health permissions not granted');
-        throw Exception('Health permissions not granted');
+        throw Exception(
+          'Health permissions not granted. Please allow access in Health Connect app.',
+        );
       }
 
+      print('Step detection initialized successfully');
       _isInitialized = true;
       return true;
     } catch (e) {
       print('Error initializing step detection: $e');
+      _isInitialized = false;
       return false;
     }
   }
@@ -163,27 +201,81 @@ class StepDetectionService {
   Future<int> getTodaySteps() async {
     try {
       if (!_isInitialized) {
-        await initialize();
+        final initialized = await initialize();
+        if (!initialized) {
+          print('Failed to initialize, returning last saved step count');
+          return getLastStepCount();
+        }
       }
 
       final now = DateTime.now();
       final midnight = DateTime(now.year, now.month, now.day);
 
+      print('Getting steps from $midnight to $now');
+
       // Get steps from health service
       final steps = await _health.getTotalStepsInInterval(midnight, now);
-      if (steps != null) await saveStepCount(steps);
+      print('Retrieved steps: $steps');
 
-      return steps ?? 0;
+      if (steps != null && steps >= 0) {
+        await saveStepCount(steps);
+        return steps;
+      } else {
+        print('No step data received, returning last saved count');
+        return getLastStepCount();
+      }
     } catch (e) {
       print('Error getting today steps: $e');
       return getLastStepCount();
     }
   }
 
+  // Alternative method to get steps using health data points
+  Future<int> getTodayStepsAlternative() async {
+    try {
+      if (!_isInitialized) {
+        final initialized = await initialize();
+        if (!initialized) return getLastStepCount();
+      }
+
+      final now = DateTime.now();
+      final midnight = DateTime(now.year, now.month, now.day);
+
+      // Get health data points
+      final healthData = await _health.getHealthDataFromTypes(
+        startTime: midnight,
+        endTime: now,
+        types: [HealthDataType.STEPS],
+      );
+
+      if (healthData.isNotEmpty) {
+        int totalSteps = 0;
+        for (final data in healthData) {
+          if (data.value is NumericHealthValue) {
+            totalSteps +=
+                (data.value as NumericHealthValue).numericValue.toInt();
+          }
+        }
+        await saveStepCount(totalSteps);
+        return totalSteps;
+      }
+
+      return getLastStepCount();
+    } catch (e) {
+      print('Error getting steps alternative method: $e');
+      return getLastStepCount();
+    }
+  }
+
   // Save current step count
   Future<void> saveStepCount(int steps) async {
-    await _prefs.setInt(stepCountKey, steps);
-    await _prefs.setString(lastUpdateKey, DateTime.now().toIso8601String());
+    try {
+      await _prefs.setInt(stepCountKey, steps);
+      await _prefs.setString(lastUpdateKey, DateTime.now().toIso8601String());
+      print('Saved step count: $steps');
+    } catch (e) {
+      print('Error saving step count: $e');
+    }
   }
 
   // Get last saved step count
@@ -210,8 +302,10 @@ class StepDetectionService {
   // Start periodic step counting
   Future<void> startPeriodicStepCounting() async {
     try {
+      await Workmanager().initialize(callbackDispatcher, isInDebugMode: true);
+
       await Workmanager().registerPeriodicTask(
-        '2',
+        'periodicStepCount',
         'periodicStepCount',
         frequency: const Duration(minutes: 15),
         constraints: Constraints(
@@ -222,6 +316,7 @@ class StepDetectionService {
           requiresStorageNotLow: false,
         ),
       );
+      print('Periodic step counting started');
     } catch (e) {
       print('Error starting periodic step counting: $e');
     }
@@ -231,8 +326,18 @@ class StepDetectionService {
   Future<void> stopPeriodicStepCounting() async {
     try {
       await Workmanager().cancelByUniqueName('periodicStepCount');
+      print('Periodic step counting stopped');
     } catch (e) {
       print('Error stopping periodic step counting: $e');
     }
+  }
+
+  // Check initialization status
+  bool get isInitialized => _isInitialized;
+
+  // Force re-initialization
+  Future<bool> reinitialize() async {
+    _isInitialized = false;
+    return await initialize();
   }
 }

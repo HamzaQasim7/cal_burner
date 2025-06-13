@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../core/services/step_detection_service.dart';
 import '../models/daily_activity_model.dart';
 import '../models/weekly_summary_model.dart';
 import '../repository/activity_repository.dart';
@@ -48,33 +49,68 @@ class ActivityProvider with ChangeNotifier {
   Future<void> initializeStepCounting() async {
     if (_userId == null) {
       setUserId(currentUser?.uid ?? '');
-      return;
+      if (_userId == null) {
+        _setError('User not authenticated');
+        return;
+      }
     }
-    
+
+    _setLoading(true);
+    _clearError();
 
     try {
-      _isStepCountingInitialized =
-          await _stepRepository.initializeStepCounting();
+      print('Initializing step counting for user: $_userId');
 
-      if (!_isStepCountingInitialized) {
-        _setError('Please install Health Connect to track steps');
+      // Initialize step detection service
+      final stepService = StepDetectionService(_prefs);
+      final isInitialized = await stepService.initialize();
+
+      if (!isInitialized) {
+        _setError(
+          'Failed to initialize step counting. Please check Health Connect permissions.',
+        );
+        _isStepCountingInitialized = false;
         return;
       }
 
-      if (_isStepCountingInitialized) {
-        // Start listening to step count changes
-        _stepRepository.getStepCountStream().listen(
-          (steps) => _updateStepCount(steps),
-          onError: (error) {
-            print('Step count error: $error');
-            _setError('Step counting error: $error');
-          },
-        );
+      _isStepCountingInitialized = true;
+      print('Step counting initialized successfully');
+
+      // Start periodic step counting in background
+      await stepService.startPeriodicStepCounting();
+
+      // Get initial step count
+      final initialSteps = await stepService.getTodaySteps();
+      print('Initial step count: $initialSteps');
+
+      if (initialSteps > 0) {
+        await _updateStepCount(initialSteps);
       }
+
+      // Start listening to step count changes if you have a stream
+      _stepRepository.getStepCountStream()?.listen(
+        (steps) => _updateStepCount(steps),
+        onError: (error) {
+          print('Step count stream error: $error');
+          _setError('Step counting error: $error');
+        },
+      );
+
       notifyListeners();
     } catch (e) {
-      _setError('Failed to initialize step counting: $e');
+      print('Error initializing step counting: $e');
+      _setError('Failed to initialize step counting: ${e.toString()}');
+      _isStepCountingInitialized = false;
+    } finally {
+      _setLoading(false);
     }
+  }
+
+  // Add a method to retry initialization
+  Future<void> retryStepCountingInitialization() async {
+    print('Retrying step counting initialization...');
+    _isStepCountingInitialized = false;
+    await initializeStepCounting();
   }
 
   // Listen to step count changes

@@ -35,12 +35,7 @@ class UserModel extends Equatable {
 
   /// Creates a new instance with default values for required fields
   factory UserModel.empty() {
-    return UserModel(
-      id: '',
-      email: '',
-      name: '',
-      createdAt: DateTime.now(),
-    );
+    return UserModel(id: '', email: '', name: '', createdAt: DateTime.now());
   }
 
   /// Creates a new instance from JSON data
@@ -116,20 +111,20 @@ class UserModel extends Equatable {
 
   @override
   List<Object?> get props => [
-        id,
-        email,
-        name,
-        photoUrl,
-        createdAt,
-        isEmailVerified,
-        age,
-        height,
-        weight,
-        bodyFatPercentage,
-        gender,
-        location,
-        impScore,
-      ];
+    id,
+    email,
+    name,
+    photoUrl,
+    createdAt,
+    isEmailVerified,
+    age,
+    height,
+    weight,
+    bodyFatPercentage,
+    gender,
+    location,
+    impScore,
+  ];
 
   @override
   String toString() {
@@ -143,10 +138,10 @@ class UserModel extends Equatable {
   // Calculate IMP Score based on user metrics
   double calculateImpScore() {
     double score = 0.0;
-    
+
     // Base score for having a profile
     score += 10.0;
-    
+
     // Add points for completed profile information
     if (age != null) score += 5.0;
     if (height != null) score += 5.0;
@@ -154,13 +149,14 @@ class UserModel extends Equatable {
     if (bodyFatPercentage != null) score += 5.0;
     if (gender != null) score += 5.0;
     if (location != null) score += 5.0;
-    
+
     // Add points for email verification
-    if (isEmailVerified) score += 10.0;
-    
+    if (isEmailVerified) score += 30.0;
+
     // Normalize score to 3 decimal places
     return double.parse(score.toStringAsFixed(3));
   }
+
   // Update IMP Score
   UserModel updateImpScore() {
     return copyWith(impScore: calculateImpScore());
