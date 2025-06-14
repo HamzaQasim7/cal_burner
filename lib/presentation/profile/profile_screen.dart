@@ -75,6 +75,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
         weight: double.tryParse(weightController.text),
         bodyFatPercentage: double.tryParse(fatController.text),
         gender: gender,
+        impScore: currentUser.impScore,
       );
 
       // Show loading indicator

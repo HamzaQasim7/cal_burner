@@ -27,6 +27,7 @@ class ActivityProvider with ChangeNotifier {
   DailyActivity? _todayActivity;
   List<DailyActivity> _weeklyActivities = [];
   List<DailyActivity> _monthlyActivities = [];
+  List<DailyActivity> _yearlyActivities = [];
   bool _isLoading = false;
   String? _error;
   bool _isStepCountingInitialized = false;
@@ -43,6 +44,7 @@ class ActivityProvider with ChangeNotifier {
   List<DailyActivity> get weeklyActivities => _weeklyActivities;
 
   List<DailyActivity> get monthlyActivities => _monthlyActivities;
+  List<DailyActivity> get yearlyActivities => _yearlyActivities;
 
   bool get isLoading => _isLoading;
 
@@ -342,6 +344,10 @@ class ActivityProvider with ChangeNotifier {
         _userId!,
         weekStartDate,
       );
+
+      // Sort activities by date to ensure proper ordering
+      _weeklyActivities.sort((a, b) => a.date.compareTo(b.date));
+
       notifyListeners();
     } catch (e) {
       _setError('Failed to load weekly activities: $e');
@@ -349,6 +355,35 @@ class ActivityProvider with ChangeNotifier {
       _setLoading(false);
     }
   }
+  // Future<void> loadWeeklyActivitie() async {
+  //   if (_userId == null) {
+  //     _setError('User not logged in');
+  //     return;
+  //   }
+  //
+  //   final now = DateTime.now();
+  //   final weekStart = now.subtract(Duration(days: now.weekday - 1));
+  //   final weekStartDate = DateTime(
+  //     weekStart.year,
+  //     weekStart.month,
+  //     weekStart.day,
+  //   );
+  //
+  //   _setLoading(true);
+  //   _clearError();
+  //
+  //   try {
+  //     _weeklyActivities = await _activityRepository.getWeeklyActivities(
+  //       _userId!,
+  //       weekStartDate,
+  //     );
+  //     notifyListeners();
+  //   } catch (e) {
+  //     _setError('Failed to load weekly activities: $e');
+  //   } finally {
+  //     _setLoading(false);
+  //   }
+  // }
 
   // Load monthly activities
   Future<void> loadMonthlyActivities() async {
@@ -368,13 +403,71 @@ class ActivityProvider with ChangeNotifier {
         _userId!,
         monthStart,
       );
+
+      // Debug: Print monthly activities for verification
+      print('Loaded ${_monthlyActivities.length} monthly activities');
+      for (var activity in _monthlyActivities) {
+        print('Date: ${activity.date}, Calories: ${activity.caloriesBurned}');
+      }
+
       notifyListeners();
     } catch (e) {
+      print('Error loading monthly activities: $e');
       _setError('Failed to load monthly activities: $e');
     } finally {
       _setLoading(false);
     }
   }
+
+  // Load yearly activities
+  Future<void> loadYearlyActivities() async {
+    if (_userId == null) {
+      _setError('User not logged in');
+      return;
+    }
+
+    final now = DateTime.now();
+    final yearStart = DateTime(now.year, 1, 1);
+
+    _setLoading(true);
+    _clearError();
+
+    try {
+      _yearlyActivities = await _activityRepository.getYearlyActivities(
+        _userId!,
+        yearStart,
+      );
+      notifyListeners();
+    } catch (e) {
+      _setError('Failed to load yearly activities: $e');
+    } finally {
+      _setLoading(false);
+    }
+  }
+  // Future<void> loadMonthlyActivitie() async {
+  //   if (_userId == null) {
+  //     _setError('User not logged in');
+  //     return;
+  //   }
+  //
+  //   final now = DateTime.now();
+  //   final monthStart = DateTime(now.year, now.month, 1);
+  //
+  //   _setLoading(true);
+  //   _clearError();
+  //
+  //   try {
+  //     _monthlyActivities = await _activityRepository.getMonthlyActivities(
+  //       _userId!,
+  //       monthStart,
+  //     );
+  //     notifyListeners();
+  //   } catch (e) {
+  //     _setError('Failed to load monthly activities: $e');
+  //   } finally {
+  //     _setLoading(false);
+  //   }
+  // }
 
   // Get weekly summary
   WeeklySummary getWeeklySummary() {
@@ -386,19 +479,23 @@ class ActivityProvider with ChangeNotifier {
       weekStart.day,
     );
 
-    final totalSteps = _weeklyActivities.fold<int>(
+    // Ensure activities are sorted by date
+    final sortedActivities = List<DailyActivity>.from(_weeklyActivities)
+      ..sort((a, b) => a.date.compareTo(b.date));
+
+    final totalSteps = sortedActivities.fold<int>(
       0,
       (sum, activity) => sum + activity.steps,
     );
-    final totalCalories = _weeklyActivities.fold<double>(
+    final totalCalories = sortedActivities.fold<double>(
       0,
       (sum, activity) => sum + activity.caloriesBurned,
     );
-    final totalDistance = _weeklyActivities.fold<double>(
+    final totalDistance = sortedActivities.fold<double>(
       0,
       (sum, activity) => sum + activity.distance,
     );
-    final totalActiveMinutes = _weeklyActivities.fold<int>(
+    final totalActiveMinutes = sortedActivities.fold<int>(
       0,
       (sum, activity) => sum + activity.activeMinutes,
     );
@@ -409,8 +506,125 @@ class ActivityProvider with ChangeNotifier {
       totalCalories: totalCalories,
       totalDistance: totalDistance,
       totalActiveMinutes: totalActiveMinutes,
-      dailyActivities: List.from(_weeklyActivities),
+      dailyActivities: sortedActivities,
     );
+  }
+
+  // Get yearly summary
+  Map<String, dynamic> getYearlySummary() {
+    if (_yearlyActivities.isEmpty) {
+      final now = DateTime.now();
+      final dayOfYear = now.difference(DateTime(now.year, 1, 1)).inDays + 1;
+
+      return {
+        'totalSteps': 0,
+        'totalCalories': 0.0,
+        'totalDistance': 0.0,
+        'totalActiveMinutes': 0,
+        'averageStepsPerDay': 0,
+        'averageCaloriesPerDay': 0.0,
+        'activeDays': 0,
+        'daysInYear': dayOfYear,
+      };
+    }
+
+    final totalSteps = _yearlyActivities.fold<int>(
+      0,
+      (sum, activity) => sum + activity.steps,
+    );
+    final totalCalories = _yearlyActivities.fold<double>(
+      0,
+      (sum, activity) => sum + activity.caloriesBurned,
+    );
+    final totalDistance = _yearlyActivities.fold<double>(
+      0,
+      (sum, activity) => sum + activity.distance,
+    );
+    final totalActiveMinutes = _yearlyActivities.fold<int>(
+      0,
+      (sum, activity) => sum + activity.activeMinutes,
+    );
+
+    final activeDays =
+        _yearlyActivities.where((activity) => activity.steps > 0).length;
+    final averageSteps = activeDays > 0 ? (totalSteps / activeDays).round() : 0;
+    final averageCalories = activeDays > 0 ? totalCalories / activeDays : 0.0;
+
+    return {
+      'totalSteps': totalSteps,
+      'totalCalories': totalCalories,
+      'totalDistance': totalDistance,
+      'totalActiveMinutes': totalActiveMinutes,
+      'averageStepsPerDay': averageSteps,
+      'averageCaloriesPerDay': averageCalories,
+      'activeDays': activeDays,
+      'daysInYear': _yearlyActivities.length,
+    };
+  }
+
+  Future<void> initializeDashboard() async {
+    if (_userId == null) {
+      _setError('User not logged in');
+      return;
+    }
+
+    _setLoading(true);
+    _clearError();
+
+    try {
+      // Load all required data
+      await Future.wait([
+        loadTodayActivity(),
+        loadWeeklyActivities(),
+        loadMonthlyActivities(),
+      ]);
+    } catch (e) {
+      _setError('Failed to initialize dashboard: $e');
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  Map<String, dynamic> getWeeklyProgress() {
+    final summary = getWeeklySummary();
+    final averageSteps =
+        summary.dailyActivities.isNotEmpty ? summary.totalSteps / 7 : 0;
+
+    final stepGoalAchievedDays =
+        summary.dailyActivities
+            .where((activity) => activity.steps >= _stepGoal)
+            .length;
+
+    return {
+      'averageStepsPerDay': averageSteps,
+      'stepGoalAchievedDays': stepGoalAchievedDays,
+      'totalActiveDays':
+          summary.dailyActivities
+              .where((activity) => activity.steps > 0)
+              .length,
+      'weeklyStepGoal': _stepGoal * 7,
+      'weeklyGoalProgress': (summary.totalSteps / (_stepGoal * 7)).clamp(
+        0.0,
+        1.0,
+      ),
+    };
+  }
+
+  DailyActivity? getDayActivity(DateTime date) {
+    final dateOnly = DateTime(date.year, date.month, date.day);
+
+    try {
+      return _weeklyActivities.firstWhere((activity) {
+        final activityDate = DateTime(
+          activity.date.year,
+          activity.date.month,
+          activity.date.day,
+        );
+        return activityDate == dateOnly;
+      });
+    } catch (e) {
+      return null;
+    }
   }
 
   // Get monthly summary

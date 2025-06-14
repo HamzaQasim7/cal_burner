@@ -2,11 +2,11 @@ import 'dart:ui';
 
 import 'package:cal_burner/presentation/main_nav/widgets/dashboard_screen.dart';
 import 'package:cal_burner/presentation/profile/widgets/settings_screen.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:icons_plus/icons_plus.dart';
-import 'package:easy_localization/easy_localization.dart';
 
 import '../profile/profile_screen.dart';
 import '../statistic/statistic_screen.dart';
@@ -159,8 +159,8 @@ class _MainNavigationState extends State<MainNavigation> {
         );
       },
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        duration: const Duration(milliseconds: 100),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           color:
@@ -412,98 +412,3 @@ class _MainNavigationGlassyAltState extends State<MainNavigationGlassyAlt> {
     );
   }
 }
-
-// class MainNavigation extends StatefulWidget {
-//   const MainNavigation({super.key});
-//
-//   @override
-//   State<StatefulWidget> createState() => _MainNavigationState();
-// }
-//
-// class _MainNavigationState extends State<MainNavigation> {
-//   int _selectedIndex = 0;
-//   final PageController _pageController = PageController();
-//
-//   final List<Widget> _screens = [
-//     DashboardScreen(),
-//     // ProfileScreen(),
-//     StatisticsScreen(),
-//     ProfileSettingsScreen(),
-//     // ProfileScreen(),
-//     // SettingsScreen(),
-//   ];
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     final isDark = Theme.of(context).brightness == Brightness.dark;
-//
-//     return Scaffold(
-//       body: PageView(
-//         physics: NeverScrollableScrollPhysics(),
-//         controller: _pageController,
-//         children: _screens,
-//         onPageChanged: (index) {
-//           setState(() {
-//             _selectedIndex = index;
-//           });
-//         },
-//       ),
-//       bottomNavigationBar: Container(
-//         decoration: BoxDecoration(
-//           color: isDark ? Color(0xFF1E1E1E) : Colors.white,
-//           borderRadius: BorderRadius.only(
-//             topLeft: Radius.circular(20),
-//             topRight: Radius.circular(20),
-//           ),
-//           boxShadow: [
-//             BoxShadow(
-//               color: Colors.black.withOpacity(0.1),
-//               blurRadius: 10,
-//               offset: Offset(0, -5),
-//             ),
-//           ],
-//         ),
-//         child: BottomNavigationBar(
-//           currentIndex: _selectedIndex,
-//           onTap: (index) {
-//             setState(() {
-//               _selectedIndex = index;
-//             });
-//             _pageController.animateToPage(
-//               index,
-//               duration: Duration(milliseconds: 300),
-//               curve: Curves.easeInOut,
-//             );
-//           },
-//           type: BottomNavigationBarType.fixed,
-//           backgroundColor: Colors.transparent,
-//           elevation: 0,
-//           // selectedItemColor: Color(0xFF007AFF),
-//           // unselectedItemColor: Colors.grey,
-//           selectedLabelStyle: GoogleFonts.inter(
-//             fontSize: 12,
-//             fontWeight: FontWeight.w500,
-//           ),
-//           unselectedLabelStyle: GoogleFonts.inter(fontSize: 12),
-//           items: [
-//             BottomNavigationBarItem(
-//               icon: Icon(Iconsax.home_1_outline),
-//               activeIcon: Icon(Iconsax.home_1_bold),
-//               label: 'Home',
-//             ),
-//             BottomNavigationBarItem(
-//               icon: Icon(Iconsax.chart_1_outline),
-//               activeIcon: Icon(Iconsax.chart_1_bold),
-//               label: 'Statistic',
-//             ),
-//             BottomNavigationBarItem(
-//               icon: Icon(Iconsax.user_outline),
-//               activeIcon: Icon(Iconsax.user_bold),
-//               label: 'Profile',
-//             ),
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-// }

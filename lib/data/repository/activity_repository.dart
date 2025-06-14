@@ -121,6 +121,36 @@ class ActivityRepository {
     }
   }
 
+  // Get yearly activities
+  Future<List<DailyActivity>> getYearlyActivities(
+    String userId,
+    DateTime yearStart,
+  ) async {
+    final yearEnd = DateTime(yearStart.year + 1, 1, 1);
+
+    try {
+      final querySnapshot =
+          await _firestore
+              .collection('users')
+              .doc(userId)
+              .collection('daily_activities')
+              .where(
+                'date',
+                isGreaterThanOrEqualTo: yearStart.toIso8601String(),
+              )
+              .where('date', isLessThan: yearEnd.toIso8601String())
+              .orderBy('date')
+              .get();
+
+      return querySnapshot.docs
+          .map((doc) => DailyActivity.fromJson({'id': doc.id, ...doc.data()}))
+          .toList();
+    } catch (e) {
+      print('Error getting yearly activities: $e');
+      return [];
+    }
+  }
+
   // Update today's activity
   Future<void> updateTodayActivity(DailyActivity activity) async {
     try {

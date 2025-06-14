@@ -991,7 +991,8 @@ class StepRepository {
     required Gender gender,
   }) {
     double stepLength = calculateStepLength(heightCm: heightCm, gender: gender);
-    return steps * stepLength; // Distance in meters
+    // Convert to kilometers by dividing by 1000
+    return (steps * stepLength) / 1000.0; // Now returns distance in kilometers
   }
 
   /// Calculate distance in kilometers with personalized step length

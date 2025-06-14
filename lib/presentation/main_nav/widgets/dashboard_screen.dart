@@ -26,6 +26,19 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   @override
+  void initState() {
+    super.initState();
+    // Load monthly activities when the dashboard initializes
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final activityProvider = Provider.of<ActivityProvider>(
+        context,
+        listen: false,
+      );
+      activityProvider.initializeDashboard();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final authProvider = Provider.of<AuthenticationProvider>(
@@ -131,18 +144,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
               SizedBox(height: 15),
               Consumer<ActivityProvider>(
                 builder: (context, activityProvider, child) {
+                  final monthlySummary = activityProvider.getMonthlySummary();
+                  final totalCalories =
+                      monthlySummary['totalCalories']?.toDouble() ?? 0.0;
+
                   return MonthlyChart(
                     title: 'dashboard.calories'.tr(),
-                    subtitle:
-                        '${activityProvider.getMonthlySummary()['totalCalories']?.toStringAsFixed(0) ?? '0'}',
+                    subtitle: '${totalCalories.toStringAsFixed(0)}',
                     period: 'dashboard.last_4_weeks'.tr(),
                     chartColor: Colors.green,
                     minY: 0,
-                    maxY:
-                        activityProvider
-                            .getMonthlySummary()['totalCalories']
-                            ?.toDouble() ??
-                        1000,
+                    maxY: totalCalories > 0 ? totalCalories * 1.2 : 1000,
                   );
                 },
               ),
