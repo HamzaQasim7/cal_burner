@@ -2,12 +2,16 @@ import 'package:cal_burner/data/provider/auth_provider.dart';
 import 'package:cal_burner/data/provider/language_provider.dart';
 import 'package:cal_burner/data/provider/theme_provider.dart';
 import 'package:cal_burner/presentation/auth/login_screen.dart';
+import 'package:cal_burner/presentation/profile/widgets/change_email_sheet.dart';
+import 'package:cal_burner/presentation/profile/widgets/change_password_sheet.dart';
 import 'package:cal_burner/widgets/shared_appbar.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:icons_plus/icons_plus.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cal_burner/data/provider/activity_provider.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -22,6 +26,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
     'es': 'Español',
     'de': 'Deutsch',
   };
+
+  // Add step goal state
+  double _stepGoal = 10000.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStepGoal();
+  }
+
+  // Load saved step goal from preferences
+  Future<void> _loadStepGoal() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _stepGoal = prefs.getDouble('daily_step_goal') ?? 10000.0;
+    });
+  }
+
+  // Save step goal to preferences
+  Future<void> _saveStepGoal(double value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('daily_step_goal', value);
+  }
 
   // Show confirmation dialog for logout
   Future<void> _showLogoutConfirmationDialog() async {
@@ -132,11 +159,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  void _showChangePasswordSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => const ChangePasswordSheet(),
+    );
+  }
+
+  void _showChangeEmailSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => const ChangeEmailSheet(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final languageProvider = Provider.of<LanguageProvider>(context);
     final authProvider = context.watch<AuthenticationProvider>();
+    final activityProvider = context.watch<ActivityProvider>();
     final isDarkMode = themeProvider.isDarkMode;
     final currentLanguage =
         languages[languageProvider.currentLocale.languageCode] ?? 'English';
@@ -188,17 +240,68 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 );
               },
             ),
-            const SizedBox(height: 20),
+            const Gap(20),
+            // Modify step goal section
+            _sectionTitle('settings.step_goal'.tr()),
+            Row(
+              children: [
+                Expanded(
+                  child: SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      activeTrackColor: Theme.of(context).colorScheme.primary,
+                      inactiveTrackColor: Theme.of(
+                        context,
+                      ).colorScheme.primary.withOpacity(0.2),
+                      thumbColor: Theme.of(context).colorScheme.primary,
+                      overlayColor: Theme.of(
+                        context,
+                      ).colorScheme.primary.withOpacity(0.1),
+                      valueIndicatorColor:
+                          Theme.of(context).colorScheme.primary,
+                      valueIndicatorTextStyle: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                      ),
+                    ),
+                    child: Slider(
+                      value: activityProvider.stepGoal,
+                      min: 1000,
+                      max: 30000,
+                      divisions: 29,
+                      label: activityProvider.stepGoal.round().toString(),
+                      onChanged: (value) {
+                        activityProvider.updateStepGoal(value);
+                      },
+                    ),
+                  ),
+                ),
+                Column(
+                  children: [
+                    Text(
+                      activityProvider.stepGoal.round().toString(),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.headlineMedium!.copyWith(fontSize: 16),
+                    ),
+                    Text(
+                      'steps',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const Gap(20),
             _sectionTitle('settings.account'.tr()),
             _settingsTile(
               'settings.change_email'.tr(),
               Iconsax.sms_outline,
-              () {},
+              _showChangeEmailSheet,
             ),
             _settingsTile(
               'settings.change_password'.tr(),
               Iconsax.lock_outline,
-              () {},
+              _showChangePasswordSheet,
             ),
             const Gap(20),
             _sectionTitle('danger_zone'.tr()),

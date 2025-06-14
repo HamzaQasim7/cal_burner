@@ -1,3 +1,7 @@
+import 'dart:async';
+
+import 'package:cal_burner/data/models/step_data_model.dart';
+import 'package:cal_burner/data/provider/auth_provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -12,10 +16,13 @@ class ActivityProvider with ChangeNotifier {
   final ActivityRepository _activityRepository;
   final StepRepository _stepRepository;
   final SharedPreferences _prefs;
+  final AuthenticationProvider _authProvider;
 
-  ActivityProvider(this._prefs)
+  ActivityProvider(this._prefs, this._authProvider)
     : _activityRepository = ActivityRepository(_prefs),
-      _stepRepository = StepRepository(_prefs);
+      _stepRepository = StepRepository(_prefs, _authProvider) {
+    loadStepGoal();
+  }
 
   DailyActivity? _todayActivity;
   List<DailyActivity> _weeklyActivities = [];
@@ -24,6 +31,11 @@ class ActivityProvider with ChangeNotifier {
   String? _error;
   bool _isStepCountingInitialized = false;
   String? _userId;
+  StreamSubscription<int>? _stepCountSubscription;
+  StreamSubscription<StepData>? _stepDataSubscription;
+
+  // Add step goal state
+  double _stepGoal = 10000.0;
 
   // Getters
   DailyActivity? get todayActivity => _todayActivity;
@@ -38,6 +50,9 @@ class ActivityProvider with ChangeNotifier {
 
   bool get isStepCountingInitialized => _isStepCountingInitialized;
   User? get currentUser => FirebaseAuth.instance.currentUser;
+
+  // Add getter for step goal
+  double get stepGoal => _stepGoal;
 
   // Set user ID (call this when user logs in)
   void setUserId(String userId) {
@@ -61,41 +76,42 @@ class ActivityProvider with ChangeNotifier {
     try {
       print('Initializing step counting for user: $_userId');
 
-      // Initialize step detection service
-      final stepService = StepDetectionService(_prefs);
-      final isInitialized = await stepService.initialize();
-
-      if (!isInitialized) {
-        _setError(
-          'Failed to initialize step counting. Please check Health Connect permissions.',
-        );
-        _isStepCountingInitialized = false;
-        return;
-      }
-
-      _isStepCountingInitialized = true;
-      print('Step counting initialized successfully');
-
-      // Start periodic step counting in background
-      await stepService.startPeriodicStepCounting();
-
-      // Get initial step count
-      final initialSteps = await stepService.getTodaySteps();
-      print('Initial step count: $initialSteps');
-
-      if (initialSteps > 0) {
-        await _updateStepCount(initialSteps);
-      }
-
-      // Start listening to step count changes if you have a stream
-      _stepRepository.getStepCountStream()?.listen(
-        (steps) => _updateStepCount(steps),
+      // Start listening to step count stream
+      _stepCountSubscription?.cancel();
+      _stepCountSubscription = _stepRepository.getStepCountStream()?.listen(
+        (steps) async {
+          print('Received step update: $steps');
+          await _updateStepCount(steps);
+        },
         onError: (error) {
           print('Step count stream error: $error');
           _setError('Step counting error: $error');
         },
       );
 
+      // Start listening to detailed step data stream
+      _stepDataSubscription?.cancel();
+      _stepDataSubscription = _stepRepository.getStepDataStream()?.listen(
+        (stepData) async {
+          print('Received detailed step data: ${stepData.stepCount} steps');
+          await _updateStepCount(stepData.stepCount);
+        },
+        onError: (error) {
+          print('Step data stream error: $error');
+          _setError('Step data error: $error');
+        },
+      );
+
+      // Get initial step count
+      final initialSteps = await _stepRepository.getCurrentStepCount();
+      print('Initial step count: $initialSteps');
+
+      if (initialSteps > 0) {
+        await _updateStepCount(initialSteps);
+      }
+
+      _isStepCountingInitialized = true;
+      print('Step counting initialized successfully');
       notifyListeners();
     } catch (e) {
       print('Error initializing step counting: $e');
@@ -138,6 +154,36 @@ class ActivityProvider with ChangeNotifier {
     }
   }
 
+  // Helper method to get user's physical attributes
+  Map<String, dynamic> _getUserPhysicalAttributes() {
+    final user = _authProvider.user;
+    if (user == null) {
+      // Return default values if user is not available
+      return {
+        'weight': 70.0,
+        'height': 170.0,
+        'age': 30,
+        'gender': Gender.male,
+        'bodyFatPercentage': null,
+      };
+    }
+
+    // Convert string gender to enum
+    Gender gender = Gender.male; // default
+    if (user.gender != null) {
+      gender =
+          user.gender!.toLowerCase() == 'female' ? Gender.female : Gender.male;
+    }
+
+    return {
+      'weight': user.weight ?? 70.0,
+      'height': user.height ?? 170.0,
+      'age': user.age ?? 30,
+      'gender': gender,
+      'bodyFatPercentage': user.bodyFatPercentage,
+    };
+  }
+
   // Update step count
   Future<void> _updateStepCount(int steps) async {
     if (_userId == null) return;
@@ -148,12 +194,25 @@ class ActivityProvider with ChangeNotifier {
       }
 
       if (_todayActivity != null) {
-        final weight = 70.0; // Get this from UserProvider
-        final calories = _stepRepository.calculateCaloriesFromSteps(
-          steps,
-          weight,
+        // Get user's physical attributes
+        final attributes = _getUserPhysicalAttributes();
+
+        // Calculate calories using enhanced method with user's attributes
+        final calories = _stepRepository.calculateAccurateCaloriesFromSteps(
+          steps: steps,
+          weightKg: attributes['weight'],
+          heightCm: attributes['height'],
+          age: attributes['age'],
+          gender: attributes['gender'],
+          bodyFatPercentage: attributes['bodyFatPercentage'],
         );
-        final distance = _stepRepository.calculateDistanceFromSteps(steps);
+
+        // Calculate distance using enhanced method with user's attributes
+        final distance = _stepRepository.calculateDistanceFromSteps(
+          steps,
+          heightCm: attributes['height'],
+          gender: attributes['gender'],
+        );
 
         final updatedActivity = _todayActivity!.copyWith(
           steps: steps,
@@ -469,10 +528,117 @@ class ActivityProvider with ChangeNotifier {
     }
   }
 
+  // Add method to get activity intensity
+  ActivityIntensity getCurrentActivityIntensity() {
+    if (_todayActivity == null) return ActivityIntensity.sedentary;
+
+    final lastUpdate = _todayActivity!.updatedAt;
+    final now = DateTime.now();
+    final minutesElapsed = now.difference(lastUpdate).inMinutes;
+
+    if (minutesElapsed == 0) return ActivityIntensity.sedentary;
+
+    final stepsPerMinute = _todayActivity!.steps / minutesElapsed;
+    return _stepRepository.getActivityIntensity(stepsPerMinute.round());
+  }
+
+  // Update getCaloriesPerStep to use user attributes
+  double getCaloriesPerStep() {
+    final attributes = _getUserPhysicalAttributes();
+
+    return _stepRepository.calculateCaloriesPerStep(
+      weightKg: attributes['weight'],
+      heightCm: attributes['height'],
+      age: attributes['age'],
+      gender: attributes['gender'],
+    );
+  }
+
+  // Add method to get user's step length
+  double getUserStepLength() {
+    final attributes = _getUserPhysicalAttributes();
+
+    return _stepRepository.calculateStepLength(
+      heightCm: attributes['height'],
+      gender: attributes['gender'],
+    );
+  }
+
+  // Add method to get user's BMR
+  double getUserBMR() {
+    final attributes = _getUserPhysicalAttributes();
+
+    return _stepRepository.calculateBMR(
+      weightKg: attributes['weight'],
+      heightCm: attributes['height'],
+      age: attributes['age'],
+      gender: attributes['gender'],
+    );
+  }
+
+  // Add method to get personalized step statistics
+  Map<String, dynamic> getPersonalizedStepStatistics() {
+    if (_todayActivity == null) {
+      return {
+        'totalSteps': 0,
+        'averageStepsPerHour': 0.0,
+        'peakSteps': 0,
+        'activeTime': Duration.zero,
+        'caloriesBurned': 0.0,
+        'distance': 0.0,
+        'activityIntensity': ActivityIntensity.sedentary,
+      };
+    }
+
+    final attributes = _getUserPhysicalAttributes();
+    final stepData = StepData(
+      timestamp: _todayActivity!.updatedAt,
+      stepCount: _todayActivity!.steps,
+      stepsSinceLastUpdate: _todayActivity!.steps,
+    );
+
+    final stats = _stepRepository.getStepStatistics([stepData]);
+
+    // Add personalized calculations
+    stats['caloriesBurned'] = _stepRepository
+        .calculateAccurateCaloriesFromSteps(
+          steps: _todayActivity!.steps,
+          weightKg: attributes['weight'],
+          heightCm: attributes['height'],
+          age: attributes['age'],
+          gender: attributes['gender'],
+          bodyFatPercentage: attributes['bodyFatPercentage'],
+        );
+
+    stats['distance'] = _stepRepository.calculateDistanceFromSteps(
+      _todayActivity!.steps,
+      heightCm: attributes['height'],
+      gender: attributes['gender'],
+    );
+
+    stats['activityIntensity'] = getCurrentActivityIntensity();
+
+    return stats;
+  }
+
   // Dispose method to clean up resources
   @override
   void dispose() {
-    // Clean up any streams or resources here
+    _stepCountSubscription?.cancel();
+    _stepDataSubscription?.cancel();
     super.dispose();
+  }
+
+  // Add method to update step goal
+  Future<void> updateStepGoal(double value) async {
+    _stepGoal = value;
+    await _prefs.setDouble('daily_step_goal', value);
+    notifyListeners();
+  }
+
+  // Add method to load step goal
+  Future<void> loadStepGoal() async {
+    _stepGoal = _prefs.getDouble('daily_step_goal') ?? 10000.0;
+    notifyListeners();
   }
 }

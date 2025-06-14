@@ -69,7 +69,7 @@ void main() async {
           ChangeNotifierProvider(create: (_) => LanguageProvider()),
           ChangeNotifierProvider(create: (_) => SessionManager(prefs: prefs)),
           ChangeNotifierProvider(create: (_) => AuthenticationProvider()),
-          ChangeNotifierProvider(create: (_) => ActivityProvider(prefs)),
+          ChangeNotifierProvider(create: (_) => ActivityProvider(prefs,AuthenticationProvider())),
           ChangeNotifierProvider.value(value: authProvider),
         ],
         child: const MyApp(),

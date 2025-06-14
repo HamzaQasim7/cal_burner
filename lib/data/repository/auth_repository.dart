@@ -1,6 +1,6 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/user_model.dart';
 
@@ -89,7 +89,7 @@ class AuthRepository {
       if (userCredential.user != null) {
         // Reload user to get latest verification status
         await userCredential.user!.reload();
-        
+
         // Check if email is verified
         if (!userCredential.user!.emailVerified) {
           // Send verification email again if not verified
@@ -104,7 +104,7 @@ class AuthRepository {
         if (userData != null) {
           return userData;
         }
-        
+
         return UserModel(
           id: userCredential.user!.uid,
           email: userCredential.user!.email!,
@@ -305,6 +305,98 @@ class AuthRepository {
       return _auth.currentUser?.emailVerified ?? false;
     } catch (e) {
       rethrow;
+    }
+  }
+
+  // Change Password
+  Future<void> changePassword(
+    String currentPassword,
+    String newPassword,
+  ) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        throw FirebaseAuthException(
+          code: 'user-not-found',
+          message: 'No user is currently signed in',
+        );
+      }
+
+      // Get credentials for reauthentication
+      final credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: currentPassword,
+      );
+
+      // Reauthenticate user before changing password
+      await user.reauthenticateWithCredential(credential);
+
+      // Change password
+      await user.updatePassword(newPassword);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // Change Email
+  Future<void> changeEmail(String currentPassword, String newEmail) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        throw FirebaseAuthException(
+          code: 'user-not-found',
+          message: 'No user is currently signed in',
+        );
+      }
+
+      // Get credentials for reauthentication
+      final credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: currentPassword,
+      );
+
+      // Reauthenticate user before changing email
+      await user.reauthenticateWithCredential(credential);
+
+      // Change email
+      await user.updateEmail(newEmail);
+      // Update UserModel
+      UserModel(
+        id: user.uid,
+        email: newEmail,
+        name: user.displayName ?? '',
+        photoUrl: user.photoURL,
+        createdAt: DateTime.now(),
+      );
+      // Update email in Firestore
+      await _firestore.collection('users').doc(user.uid).update({
+        'email': newEmail,
+      });
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // Verify Current Password
+  Future<bool> verifyCurrentPassword(String currentPassword) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        throw FirebaseAuthException(
+          code: 'user-not-found',
+          message: 'No user is currently signed in',
+        );
+      }
+
+      final credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: currentPassword,
+      );
+
+      await user.reauthenticateWithCredential(credential);
+      return true;
+    } catch (e) {
+      return false;
     }
   }
 }

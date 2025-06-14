@@ -90,6 +90,8 @@ class WeeklyChart extends StatelessWidget {
                         sideTitles: SideTitles(
                           showTitles: true,
                           getTitlesWidget: (value, meta) {
+                            final now = DateTime.now();
+  final today = now.weekday;
                             final days = [
                               'dashboard.mon'.tr(),
                               'dashboard.tue'.tr(),
@@ -99,8 +101,9 @@ class WeeklyChart extends StatelessWidget {
                               'dashboard.sat'.tr(),
                               'dashboard.sun'.tr(),
                             ];
+                            final index = (value.toInt() + today - 1) % 7;
                             return Text(
-                              days[value.toInt()],
+                              days[index],
                               style: GoogleFonts.inter(
                                 fontSize: 12,
                                 color: isDark ? Colors.white70 : Colors.black54,

@@ -94,7 +94,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                   return ActivityCard(
                     title: 'dashboard.calories_burned'.tr(),
-                    value: '$caloriesBurned',
+                    value: caloriesBurned.toStringAsFixed(1),
                     icon: Icons.local_fire_department,
                     color: Color(0xFFFF6B6B),
                   );

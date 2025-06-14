@@ -277,6 +277,71 @@ class AuthenticationProvider extends ChangeNotifier {
     }
   }
 
+  // Change Password
+  Future<bool> changePassword(String currentPassword, String newPassword) async {
+    _setLoading(true);
+    try {
+      await _authRepository.changePassword(currentPassword, newPassword);
+      _error = null;
+      notifyListeners();
+      return true;
+    } on FirebaseAuthException catch (e) {
+      _error = e.message;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Change Email
+  Future<bool> changeEmail(String currentPassword, String newEmail) async {
+    _setLoading(true);
+    try {
+      await _authRepository.changeEmail(currentPassword, newEmail);
+      
+      // Update local user state
+      if (_user != null) {
+        _user = _user!.copyWith(email: newEmail);
+      }
+      
+      _error = null;
+      notifyListeners();
+      return true;
+    } on FirebaseAuthException catch (e) {
+      _error = e.message;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Verify Current Password
+  Future<bool> verifyCurrentPassword(String currentPassword) async {
+    _setLoading(true);
+    try {
+      final result = await _authRepository.verifyCurrentPassword(currentPassword);
+      _error = null;
+      notifyListeners();
+      return result;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
   // Helper method to set loading state
   void _setLoading(bool value) {
     _isLoading = value;

@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../data/provider/activity_provider.dart';
 
 class DailyStepsWidget extends StatefulWidget {
@@ -14,6 +17,7 @@ class DailyStepsWidget extends StatefulWidget {
 
 class _DailyStepsWidgetState extends State<DailyStepsWidget> {
   bool _isInitialized = false;
+  StreamSubscription<int>? _stepCountSubscription;
 
   @override
   void initState() {
@@ -22,6 +26,12 @@ class _DailyStepsWidgetState extends State<DailyStepsWidget> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeData();
     });
+  }
+
+  @override
+  void dispose() {
+    _stepCountSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _initializeData() async {
@@ -65,19 +75,24 @@ class _DailyStepsWidgetState extends State<DailyStepsWidget> {
     return Container(
       padding: const EdgeInsets.all(16),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             error,
             style: GoogleFonts.inter(fontSize: 14, color: Colors.red),
           ),
-          if (error.contains('Health Connect'))
-            ElevatedButton(
-              onPressed: () async {
-                final activityProvider = context.read<ActivityProvider>();
-                await activityProvider.initializeStepCounting();
-              },
-              child: Text('Install Health Connect'),
+          const SizedBox(height: 8),
+          ElevatedButton(
+            onPressed: () async {
+              final activityProvider = context.read<ActivityProvider>();
+              await activityProvider.retryStepCountingInitialization();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
             ),
+            child: const Text('Retry'),
+          ),
         ],
       ),
     );
@@ -95,7 +110,7 @@ class _DailyStepsWidgetState extends State<DailyStepsWidget> {
 
         final todayActivity = activityProvider.todayActivity;
         final steps = todayActivity?.steps ?? 0;
-        const stepGoal = 10000;
+        final stepGoal = activityProvider.stepGoal;
         final progress = (steps / stepGoal).clamp(0.0, 1.0);
         final progressColor = _getProgressColor(progress);
         final message = _getMotivationalMessage(progress);
@@ -162,27 +177,15 @@ class _DailyStepsWidgetState extends State<DailyStepsWidget> {
                 animationDuration: 1000,
               ),
               const SizedBox(height: 10),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    message,
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: progressColor,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  if (todayActivity != null)
-                    Text(
-                      '${(progress * 100).toInt()}%',
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        color: progressColor,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                ],
+              Text(
+                "$message ${todayActivity != null ? '\n${(progress * 100).toInt()}%' : ''}",
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: progressColor,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ],
           ),
