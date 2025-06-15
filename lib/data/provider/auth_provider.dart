@@ -24,7 +24,13 @@ class AuthenticationProvider extends ChangeNotifier {
   Future<void> initialize() async {
     _setLoading(true);
     try {
-      _user = _authRepository.currentUser;
+      final firebaseAuthUser = FirebaseAuth.instance.currentUser;
+      if (firebaseAuthUser != null) {
+        // Fetch the full UserModel from Firestore using its ID
+        _user = await _authRepository.getUserData(firebaseAuthUser.uid);
+      } else {
+        _user = null;
+      }
       _error = null;
     } catch (e) {
       _error = e.toString();
@@ -43,7 +49,7 @@ class AuthenticationProvider extends ChangeNotifier {
         notifyListeners();
         return false;
       }
-      
+
       // Check email verification
       if (!_user!.isEmailVerified) {
         await _authRepository.sendEmailVerification();
@@ -51,7 +57,7 @@ class AuthenticationProvider extends ChangeNotifier {
         notifyListeners();
         return false;
       }
-      
+
       _error = null;
       notifyListeners();
       return true;
@@ -278,7 +284,10 @@ class AuthenticationProvider extends ChangeNotifier {
   }
 
   // Change Password
-  Future<bool> changePassword(String currentPassword, String newPassword) async {
+  Future<bool> changePassword(
+    String currentPassword,
+    String newPassword,
+  ) async {
     _setLoading(true);
     try {
       await _authRepository.changePassword(currentPassword, newPassword);
@@ -302,13 +311,16 @@ class AuthenticationProvider extends ChangeNotifier {
   Future<bool> changeEmail(String currentPassword, String newEmail) async {
     _setLoading(true);
     try {
+      // Call the updated repository method
       await _authRepository.changeEmail(currentPassword, newEmail);
-      
-      // Update local user state
-      if (_user != null) {
-        _user = _user!.copyWith(email: newEmail);
-      }
-      
+
+      // Reload the user data after email change
+      await _authRepository.reloadUser();
+      _user = _authRepository.currentUser;
+
+      // Send verification email
+      await _authRepository.sendEmailVerification();
+
       _error = null;
       notifyListeners();
       return true;
@@ -329,7 +341,9 @@ class AuthenticationProvider extends ChangeNotifier {
   Future<bool> verifyCurrentPassword(String currentPassword) async {
     _setLoading(true);
     try {
-      final result = await _authRepository.verifyCurrentPassword(currentPassword);
+      final result = await _authRepository.verifyCurrentPassword(
+        currentPassword,
+      );
       _error = null;
       notifyListeners();
       return result;

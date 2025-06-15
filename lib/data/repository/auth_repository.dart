@@ -50,8 +50,8 @@ class AuthRepository {
     }
   }
 
-  // Get user data from Firestore
-  Future<UserModel?> _getUserData(String userId) async {
+  // Get user data from Firestore (made public)
+  Future<UserModel?> getUserData(String userId) async {
     try {
       final doc = await _firestore.collection('users').doc(userId).get();
       if (doc.exists) {
@@ -100,7 +100,7 @@ class AuthRepository {
           );
         }
 
-        final userData = await _getUserData(userCredential.user!.uid);
+        final userData = await getUserData(userCredential.user!.uid);
         if (userData != null) {
           return userData;
         }
@@ -144,7 +144,7 @@ class AuthRepository {
 
       if (userCredential.user != null) {
         // Check if user data exists in Firestore
-        final userData = await _getUserData(userCredential.user!.uid);
+        final userData = await getUserData(userCredential.user!.uid);
 
         if (userData != null) {
           return userData;
@@ -359,7 +359,11 @@ class AuthRepository {
       await user.reauthenticateWithCredential(credential);
 
       // Change email
-      await user.updateEmail(newEmail);
+      await user.verifyBeforeUpdateEmail(newEmail);
+
+      // Send verification email to the new address
+      await user.sendEmailVerification();
+
       // Update UserModel
       UserModel(
         id: user.uid,
@@ -367,10 +371,13 @@ class AuthRepository {
         name: user.displayName ?? '',
         photoUrl: user.photoURL,
         createdAt: DateTime.now(),
+        isEmailVerified: false,
       );
+
       // Update email in Firestore
       await _firestore.collection('users').doc(user.uid).update({
         'email': newEmail,
+        'isEmailVerified': false,
       });
     } catch (e) {
       rethrow;

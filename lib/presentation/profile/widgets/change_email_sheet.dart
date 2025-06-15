@@ -1,9 +1,9 @@
-import 'package:cal_burner/presentation/onboardings/widgets/custom_button.dart';
 import 'package:cal_burner/widgets/custom_text_field.dart';
-import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/material.dart';
 import 'package:icons_plus/icons_plus.dart';
 import 'package:provider/provider.dart';
+
 import '../../../../data/provider/auth_provider.dart';
 
 class ChangeEmailSheet extends StatefulWidget {
@@ -27,6 +27,28 @@ class _ChangeEmailSheetState extends State<ChangeEmailSheet> {
     super.dispose();
   }
 
+  String? _validateEmail(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'field_required'.tr();
+    }
+
+    // More comprehensive email validation
+    final emailRegex = RegExp(r'^[a-zA-Z0-9.]+@[a-zA-Z0-9]+\.[a-zA-Z]+');
+
+    if (!emailRegex.hasMatch(value)) {
+      return 'invalid_email'.tr();
+    }
+
+    // Check if it's the same as current email
+    final currentUser = context.read<AuthenticationProvider>().user;
+    if (currentUser != null &&
+        value.toLowerCase() == currentUser.email.toLowerCase()) {
+      return 'same_email_error'.tr(); // Add this translation
+    }
+
+    return null;
+  }
+
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -35,21 +57,28 @@ class _ChangeEmailSheetState extends State<ChangeEmailSheet> {
     try {
       final authProvider = context.read<AuthenticationProvider>();
       final success = await authProvider.changeEmail(
-        _currentPasswordController.text,
-        _newEmailController.text,
+        _currentPasswordController.text.trim(),
+        _newEmailController.text.trim(),
       );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('email_changed_verification_sent'.tr()),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+      Navigator.pop(context);
 
-      if (success && mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('email_changed_success'.tr())));
-        Navigator.pop(context);
-      }
+      // // Show specific error from provider
+      // final error = authProvider.error ?? 'unknown_error'.tr();
+      // ScaffoldMessenger.of(context).showSnackBar(
+      //   SnackBar(content: Text(error), backgroundColor: Colors.red),
+      // );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+        );
       }
     } finally {
       if (mounted) {
@@ -61,6 +90,7 @@ class _ChangeEmailSheetState extends State<ChangeEmailSheet> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final currentUser = context.watch<AuthenticationProvider>().user;
 
     return Container(
       decoration: BoxDecoration(
@@ -109,26 +139,51 @@ class _ChangeEmailSheetState extends State<ChangeEmailSheet> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 12),
+
+                  // Current email display
+                  if (currentUser != null) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.email_outlined,
+                            color: Colors.grey[600],
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${'current_email'.tr()}: ${currentUser.email}',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 10,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+
                   CustomTextField(
                     controller: _newEmailController,
                     keyboardType: TextInputType.emailAddress,
                     labelText: 'new_email'.tr(),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'field_required'.tr();
-                      }
-                      if (!value.contains('@') || !value.contains('.')) {
-                        return 'invalid_email'.tr();
-                      }
-                      return null;
-                    },
+                    validator: _validateEmail,
+                    textInputAction: TextInputAction.next,
                   ),
                   const SizedBox(height: 16),
                   CustomTextField(
                     controller: _currentPasswordController,
                     obscureText: _obscurePassword,
                     labelText: 'current_password'.tr(),
+                    textInputAction: TextInputAction.done,
+                    onFieldSubmitted: (_) => _handleSubmit(),
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscurePassword
@@ -145,10 +200,43 @@ class _ChangeEmailSheetState extends State<ChangeEmailSheet> {
                       if (value == null || value.isEmpty) {
                         return 'field_required'.tr();
                       }
+                      if (value.length < 6) {
+                        return 'password_min_length'
+                            .tr(); // Add this translation
+                      }
                       return null;
                     },
                   ),
+                  const SizedBox(height: 16),
+
+                  // Info message
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.info_outline, color: Colors.blue, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'email_change_info'.tr(),
+                            // Add translation: "A verification email will be sent to your new email address"
+                            style: TextStyle(
+                              color: Colors.blue[700],
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 24),
+
                   ElevatedButton(
                     onPressed: _isLoading ? null : _handleSubmit,
                     style: ElevatedButton.styleFrom(
