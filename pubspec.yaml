@@ -32,7 +32,7 @@ dependencies:
   provider: ^6.1.1
   easy_localization: ^3.0.3
   image_picker: ^1.1.2
-
+  flutter_local_notifications: ^19.2.1
   workmanager: ^0.6.0
 
 dev_dependencies:
