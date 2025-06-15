@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cal_burner/core/services/notification_service.dart';
 import 'package:cal_burner/data/models/step_data_model.dart';
 import 'package:cal_burner/data/provider/auth_provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -17,6 +18,7 @@ class ActivityProvider with ChangeNotifier {
   final StepRepository _stepRepository;
   final SharedPreferences _prefs;
   final AuthenticationProvider _authProvider;
+  final NotificationService _notificationService = NotificationService();
 
   ActivityProvider(this._prefs, this._authProvider)
     : _activityRepository = ActivityRepository(_prefs),
@@ -76,6 +78,28 @@ class ActivityProvider with ChangeNotifier {
     _clearError();
 
     try {
+      // Initialize notifications
+      await _notificationService.initialize();
+      
+      // Schedule daily step reminder
+      await _notificationService.scheduleDailyStepReminder(
+        hour: 20, // 8 PM
+        minute: 0,
+        stepGoal: _stepGoal.toInt(),
+      );
+
+      // Schedule weekly summary
+      await _notificationService.scheduleWeeklySummary(
+        weekday: 1, // Monday
+        hour: 9, // 9 AM
+        minute: 0,
+      );
+
+      // Schedule inactivity reminder
+      await _notificationService.scheduleInactivityReminder(
+        inactivityPeriod: const Duration(hours: 1),
+      );
+
       print('Initializing step counting for user: $_userId');
 
       // Start listening to step count stream
@@ -151,6 +175,9 @@ class ActivityProvider with ChangeNotifier {
     try {
       final currentSteps = await _stepRepository.getCurrentStepCount();
       await _updateStepCount(currentSteps);
+      
+      // Check for inactivity
+      await checkInactivity();
     } catch (e) {
       print('Error handling background update: $e');
     }
@@ -847,6 +874,14 @@ class ActivityProvider with ChangeNotifier {
   Future<void> updateStepGoal(double value) async {
     _stepGoal = value;
     await _prefs.setDouble('daily_step_goal', value);
+    
+    // Update the daily step reminder with new goal
+    await _notificationService.scheduleDailyStepReminder(
+      hour: 20,
+      minute: 0,
+      stepGoal: value.toInt(),
+    );
+    
     notifyListeners();
   }
 
@@ -854,5 +889,19 @@ class ActivityProvider with ChangeNotifier {
   Future<void> loadStepGoal() async {
     _stepGoal = _prefs.getDouble('daily_step_goal') ?? 10000.0;
     notifyListeners();
+  }
+
+  // Add this method to check and notify for inactivity
+  Future<void> checkInactivity() async {
+    if (_todayActivity == null) return;
+
+    final lastUpdate = _todayActivity!.updatedAt;
+    final now = DateTime.now();
+    final inactiveDuration = now.difference(lastUpdate);
+
+    // If inactive for more than 1 hour, show reminder
+    if (inactiveDuration.inHours >= 1) {
+      await _notificationService.showWalkingReminder();
+    }
   }
 }

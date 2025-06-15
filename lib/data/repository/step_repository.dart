@@ -17,6 +17,7 @@ class StepRepository {
   final SharedPreferences _prefs;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final AuthenticationProvider _authProvider;
+  final NotificationService _notificationService = NotificationService();
 
   StreamSubscription<StepCount>? _stepCountSubscription;
   StreamSubscription<PedestrianStatus>? _pedestrianStatusSubscription;
@@ -187,6 +188,29 @@ class StepRepository {
       _stepDataController.add(stepData);
 
       print('Current session steps: $validSteps ($stepsSinceLastUpdate new)');
+
+      // Add these notification checks after calculating calories and distance
+      // Check for step goal achievement
+      final stepGoal = _prefs.getDouble('daily_step_goal') ?? 10000.0;
+      if (validSteps >= stepGoal && _lastStepCount < stepGoal) {
+        await _notificationService.showStepGoalAchieved(
+          steps: validSteps,
+          goal: stepGoal.toInt(),
+          caloriesBurned: caloriesBurned,
+          distance: distance,
+        );
+      }
+
+      // Check for milestones (every 1000 steps)
+      final lastMilestone = _prefs.getInt('last_step_milestone') ?? 0;
+      final currentMilestone = (validSteps ~/ 1000) * 1000;
+      if (currentMilestone > lastMilestone) {
+        await _notificationService.showMilestoneAchieved(
+          milestone: '${currentMilestone} Steps!',
+          description: 'Congratulations on reaching $currentMilestone steps!',
+        );
+        await _prefs.setInt('last_step_milestone', currentMilestone);
+      }
     } catch (e) {
       print('Error processing step count: $e');
     }
